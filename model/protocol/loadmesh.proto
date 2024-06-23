@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+option go_package = "model/protocol";
+package loadmesh;
+
+message Metadata {
+  string namespace = 1;
+  string name = 2;
+  string uuid = 3;
+}
+
+enum State {
+  PENDING = 0;
+  ASSIGNING = 1;
+  INITIATING = 2;
+  RUNNING = 3;
+  DELETING = 4;
+  DELETED = 5;
+  FAILED = 6;
+}
+
+message Resource {
+  Metadata metadata = 1;
+  string kind = 2;
+  string spec = 3;
+
+  State state = 4;
+  int64 version = 5;
+  int64 last_update_time = 6;
+  string executor_endpoint = 7;
+  string message = 8;
+}
+
+message Status {
+  Metadata metadata = 1;
+  State state = 2;
+  int64 version = 3;
+  string message = 4;
+}
+
+message Request{
+  // TODO: Add query feature in the future
+}
+
+message Response {
+  string error = 1;
+}
+
+service Executor {
+  rpc Reconcile(Resource) returns (Response) {}
+  rpc StatusUpdate(Request) returns (stream Status) {}
+}
