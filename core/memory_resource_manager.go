@@ -7,6 +7,7 @@ import (
 	"github.com/loadmesh/loadmesh/api"
 	"github.com/loadmesh/loadmesh/model/protocol"
 	"sync"
+	"time"
 )
 
 type MemoryResourceManager struct {
@@ -50,10 +51,11 @@ func (m *MemoryResourceManager) Set(resource *protocol.Resource) error {
 	}
 	newRes := cloneResource(resource)
 	newRes.Version++
+	newRes.LastUpdateTime = time.Now().UnixMilli()
 	m.resources[resource.GetMetadata().GetUuid()] = newRes
 	// notify watchers asynchronously
 	go func() {
-		if chs, exists := m.watchChs[newRes.GetKind()]; exists {
+		if chs, exists := m.watchChs[newRes.GetMetadata().GetKind()]; exists {
 			for _, ch := range chs {
 				ch <- cloneResource(newRes)
 			}
@@ -69,7 +71,7 @@ func (m *MemoryResourceManager) Watch(ctx context.Context, kind string) (<-chan 
 	m.watchChs[kind] = append(m.watchChs[kind], ch)
 	resourceSnapshot := make([]*protocol.Resource, 0, len(m.resources))
 	for _, resource := range m.resources {
-		if resource.GetKind() == kind {
+		if resource.GetMetadata().GetKind() == kind {
 			resourceSnapshot = append(resourceSnapshot, cloneResource(resource))
 		}
 	}

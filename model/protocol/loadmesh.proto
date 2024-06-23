@@ -7,6 +7,7 @@ message Metadata {
   string namespace = 1;
   string name = 2;
   string uuid = 3;
+  string kind = 4;
 }
 
 enum State {
@@ -21,14 +22,14 @@ enum State {
 
 message Resource {
   Metadata metadata = 1;
-  string kind = 2;
-  string spec = 3;
+  string spec = 2;
 
-  State state = 4;
-  int64 version = 5;
-  int64 last_update_time = 6;
-  string executor_endpoint = 7;
-  string message = 8;
+  State state = 3;
+  int64 version = 4;
+  int64 last_update_time = 5;
+  string executor_endpoint = 6;
+  string message = 7;
+  int32 retry_count = 8;
 }
 
 message Status {
@@ -36,6 +37,7 @@ message Status {
   State state = 2;
   int64 version = 3;
   string message = 4;
+  int32 retry_count = 5;
 }
 
 message Request{

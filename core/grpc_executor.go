@@ -27,7 +27,9 @@ type GRPCExecutor struct {
 	statusUpdateCh chan *protocol.Status
 }
 
-func NewGRPCExecutor(ctx context.Context, endpoint string, log *fscommon.Logger) api.Executor {
+var _ api.Executor = &GRPCExecutor{}
+
+func NewGRPCExecutor(ctx context.Context, endpoint string, log *fscommon.Logger) *GRPCExecutor {
 	return &GRPCExecutor{
 		endpoint:       endpoint,
 		ctx:            ctx,
@@ -69,12 +71,12 @@ func (e *GRPCExecutor) Connect() {
 }
 
 func (e *GRPCExecutor) handleResourceError(resource *protocol.Resource, err error) {
-	// TODO: Add retry support
 	status := &protocol.Status{}
 	status.Metadata = resource.GetMetadata()
-	status.State = protocol.State_FAILED
+	status.State = resource.GetState()
 	status.Version = resource.Version
 	status.Message = err.Error()
+	status.RetryCount = resource.GetRetryCount() + 1
 	e.statusUpdateCh <- status
 }
 
@@ -105,7 +107,7 @@ func NewGRPCRandomSelector() api.ExecutorSelector {
 	return &GRPCRandomSelector{}
 }
 
-func (s *GRPCRandomSelector) Select(resource *protocol.Resource, executors map[string]api.Executor) (string, error) {
+func (s *GRPCRandomSelector) Select(_ *protocol.Resource, executors map[string]api.Executor) (string, error) {
 	readyExecutors := make([]string, len(executors))
 	for endpoint, executor := range executors {
 		if grpcExecutor, ok := executor.(*GRPCExecutor); ok {

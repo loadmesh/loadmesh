@@ -99,6 +99,7 @@ func NewLoadMesh(opts ...LoadMeshOption) (*LoadMesh, error) {
 func (l *LoadMesh) Start(ctx context.Context) error {
 	for kind, endpoints := range l.opts.executorEndpoints {
 		if _, ok := l.executors[kind]; !ok {
+			retryTracker := NewRetryTracker(ctx, l.log)
 			l.executors[kind] = &ResourceReconciler{
 				kind:           kind,
 				pool:           make(map[string]api.Executor),
@@ -107,7 +108,9 @@ func (l *LoadMesh) Start(ctx context.Context) error {
 				resMgr:         l.opts.resourceManager,
 				statusUpdateCh: make(chan *protocol.Status),
 				selector:       l.opts.selector,
+				retryTracker:   retryTracker,
 			}
+			go retryTracker.Start()
 		}
 		for endpoint, executor := range endpoints {
 			l.executors[kind].AddExecutor(endpoint, executor)
@@ -134,11 +137,12 @@ func (r *RandomSelector) Select(_ *protocol.Resource, executors map[string]api.E
 type ResourceReconciler struct {
 	kind string
 	// endpoint -> executor
-	pool     map[string]api.Executor
-	ctx      context.Context
-	log      *fscommon.Logger
-	resMgr   api.ResourceManager
-	selector api.ExecutorSelector
+	pool         map[string]api.Executor
+	ctx          context.Context
+	log          *fscommon.Logger
+	resMgr       api.ResourceManager
+	selector     api.ExecutorSelector
+	retryTracker *RetryTracker
 
 	statusUpdateCh chan *protocol.Status
 }
@@ -172,8 +176,16 @@ func (p *ResourceReconciler) RunEventLoop() {
 	p.log.Info("start event loop", "kind", p.kind)
 	for {
 		select {
-		case resource := <-watchCh:
+		case resource := <-p.retryTracker.GetRetryCh():
 			p.reconcileResource(resource)
+		case resource := <-watchCh:
+			if resource.GetRetryCount() > 0 {
+				// The resource is in retry state.
+				p.log.Info("this resource is in the retry state. Add it to the retry tracker", "resource", resource.GetMetadata().String())
+				p.retryTracker.Add(resource)
+			} else {
+				p.reconcileResource(resource)
+			}
 		case status := <-p.statusUpdateCh:
 			p.updateStatus(status)
 		case <-p.ctx.Done():
@@ -182,13 +194,7 @@ func (p *ResourceReconciler) RunEventLoop() {
 }
 
 func resourceMetadataString(resource *protocol.Resource) string {
-	return fmt.Sprintf("[%s]%s/%s(%s)", resource.GetKind(), resource.GetMetadata().GetNamespace(), resource.GetMetadata().GetName(), resource.GetMetadata().GetUuid())
-}
-
-func (p *ResourceReconciler) updateResource(resource *protocol.Resource) {
-	if err := p.resMgr.Set(resource); err != nil {
-		p.log.Error(err, "failed to update resource", "resource", resourceMetadataString(resource))
-	}
+	return resource.GetMetadata().String()
 }
 
 func (p *ResourceReconciler) getResource(uuid string) *protocol.Resource {
@@ -200,29 +206,45 @@ func (p *ResourceReconciler) getResource(uuid string) *protocol.Resource {
 	return resource
 }
 
+func (p *ResourceReconciler) setResource(resource *protocol.Resource) {
+	if err := p.resMgr.Set(resource); err != nil {
+		p.log.Error(err, "failed to update resource", "resource", resourceMetadataString(resource))
+	}
+}
+
 func (p *ResourceReconciler) reconcileResource(resource *protocol.Resource) {
 	switch resource.GetState() {
 	case protocol.State_PENDING:
 		{
 			p.log.Info("assigning resource", "resource", resourceMetadataString(resource))
 			resource.State = protocol.State_ASSIGNING
-			p.updateResource(resource)
+			p.setResource(resource)
 		}
 	case protocol.State_ASSIGNING:
 		{
 			p.log.Info("initiating resource", "resource", resourceMetadataString(resource))
 			p.assignResource(resource)
 		}
+	case protocol.State_DELETING:
+		{
+			p.log.Info("deleting resource", "resource", resourceMetadataString(resource))
+			p.updateResource(resource)
+		}
+	default:
+		{
+			p.log.Info("the resource reconciler has nothing to do with this resource. Penetrate it to the executor", "resource", resourceMetadataString(resource), "state", resource.GetState())
+			p.updateResource(resource)
+		}
 	}
 }
 
 func (p *ResourceReconciler) handleResourceError(resource *protocol.Resource, err error) {
-	p.log.Error(err, "failed to handle resource", "resource", resourceMetadataString(resource))
 	status := &protocol.Status{}
 	status.Metadata = resource.GetMetadata()
-	status.State = protocol.State_FAILED
-	status.Version = resource.GetVersion()
+	status.State = resource.GetState()
+	status.Version = resource.Version
 	status.Message = err.Error()
+	status.RetryCount = resource.GetRetryCount() + 1
 	p.statusUpdateCh <- status
 }
 
@@ -238,14 +260,33 @@ func (p *ResourceReconciler) assignResource(resource *protocol.Resource) {
 	}
 	resource.ExecutorEndpoint = endpoint
 	resource.State = protocol.State_INITIATING
-	p.updateResource(resource)
+	p.setResource(resource)
 	updatedRes := p.getResource(resource.GetMetadata().GetUuid())
 	p.pool[endpoint].Reconcile(updatedRes)
 }
 
+func IsFinalState(state protocol.State) bool {
+	return state == protocol.State_DELETED || state == protocol.State_FAILED
+}
+
+func (p *ResourceReconciler) updateResource(resource *protocol.Resource) {
+	if IsFinalState(resource.GetState()) {
+		return
+	}
+	resource.Message = ""
+	executor, exists := p.pool[resource.GetExecutorEndpoint()]
+	if !exists {
+		p.log.Error(fmt.Errorf("executor not found: %s", resource.GetExecutorEndpoint()), "failed to update resource", "resource", resourceMetadataString(resource))
+		return
+	}
+	executor.Reconcile(resource)
+}
+
 func (p *ResourceReconciler) updateStatus(status *protocol.Status) {
+	p.log.Info("received status update", "status", status)
 	resource := p.getResource(status.GetMetadata().GetUuid())
 	if resource == nil {
+		p.log.Info("resource not found", "uuid", status.GetMetadata().GetUuid())
 		return
 	}
 	if status.GetVersion() < resource.GetVersion() {
@@ -254,5 +295,12 @@ func (p *ResourceReconciler) updateStatus(status *protocol.Status) {
 	}
 	resource.State = status.GetState()
 	resource.Message = status.GetMessage()
-	p.updateResource(resource)
+	if status.GetState() == protocol.State_DELETED {
+		resource.ExecutorEndpoint = ""
+	}
+	resource.RetryCount = status.RetryCount
+	if resource.RetryCount == 0 {
+		p.retryTracker.Remove(resource.GetMetadata().GetUuid())
+	}
+	p.setResource(resource)
 }
