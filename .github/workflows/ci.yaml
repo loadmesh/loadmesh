@@ -44,10 +44,18 @@ jobs:
         run: nohup make run-java-test-executor & > nohup.out
       - name: Wait for Java Test Executor to be ready
         run: |
+          timeout=10
+          waited=0
           while ! nc -z localhost 50052; do
+            if [ $waited -ge $timeout ]; then
+              echo "Timeout: Port 50052 is not open after $timeout seconds."
+              exit 1
+            fi
             echo "Waiting for port 50052..."
             sleep 1
+            waited=$((waited + 1))
           done
+          echo "Port 50052 is now open!"
       - run: make test
       - name: Collect nohup logs
         if: failure()
