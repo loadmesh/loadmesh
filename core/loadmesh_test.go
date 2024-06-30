@@ -18,11 +18,12 @@ package core
 
 import (
 	"context"
-	"github.com/labstack/gommon/log"
-	"github.com/loadmesh/loadmesh/executors/goexecutor"
 	"net"
 	"testing"
 	"time"
+
+	"github.com/labstack/gommon/log"
+	"github.com/loadmesh/loadmesh/executors/goexecutor"
 
 	"github.com/functionstream/function-stream/common"
 	"github.com/google/uuid"
