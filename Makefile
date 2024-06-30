@@ -1,4 +1,10 @@
 
+lint:
+	golangci-lint run
+
+lint-fix:
+	golangci-lint run --fix
+
 proto:
 	for PROTO_FILE in $$(find . -name '*.proto'); do \
 		echo "generating codes for $$PROTO_FILE"; \
@@ -11,3 +17,9 @@ proto:
 			--plugin protoc-gen-go-grpc="${GOPATH}/bin/protoc-gen-go-grpc" \
 			$$PROTO_FILE; \
 	done
+
+test:
+	go test ./...
+
+license:
+	./license-checker/license-checker.sh

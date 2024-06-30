@@ -1,13 +1,30 @@
+/*
+ * Copyright 2024 LoadMesh Org.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package grpc_executor
 
 import (
 	"context"
+	"net"
+
 	fscommon "github.com/functionstream/function-stream/common"
 	"github.com/go-logr/logr"
 	"github.com/loadmesh/loadmesh/api"
 	"github.com/loadmesh/loadmesh/model/protocol"
 	"google.golang.org/grpc"
-	"net"
 )
 
 type GRPCExecutorService struct {
@@ -76,7 +93,7 @@ func (s *serverImpl) Reconcile(ctx context.Context, resource *protocol.Resource)
 	return &protocol.Response{}, nil
 }
 
-func (s *serverImpl) StatusUpdate(request *protocol.Request, server protocol.Executor_StatusUpdateServer) error {
+func (s *serverImpl) StatusUpdate(_ *protocol.Request, server protocol.Executor_StatusUpdateServer) error {
 	for {
 		select {
 		case status := <-s.executor.StatusUpdate(server.Context()):

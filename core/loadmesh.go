@@ -1,14 +1,31 @@
+/*
+ * Copyright 2024 LoadMesh Org.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package core
 
 import (
 	"context"
 	"fmt"
+	"math/rand"
+
 	fscommon "github.com/functionstream/function-stream/common"
 	"github.com/go-logr/logr"
 	"github.com/loadmesh/loadmesh/api"
 	"github.com/loadmesh/loadmesh/core/common"
 	"github.com/loadmesh/loadmesh/model/protocol"
-	"math/rand"
 )
 
 type LoadMesh struct {
@@ -125,7 +142,7 @@ func (r *RandomSelector) Select(_ *protocol.Resource, executors map[string]api.E
 		return "", common.ErrExecutorNotReady
 	}
 	endpoints := make([]string, 0, len(executors))
-	for endpoint, _ := range executors {
+	for endpoint := range executors {
 		endpoints = append(endpoints, endpoint)
 	}
 	return endpoints[rand.Intn(len(endpoints))], nil
@@ -178,7 +195,8 @@ func (p *ResourceReconciler) RunEventLoop() {
 		case resource := <-watchCh:
 			if resource.GetRetryCount() > 0 {
 				// The resource is in retry state.
-				p.log.Info("this resource is in the retry state. Add it to the retry tracker", "resource", resource.GetMetadata().String())
+				p.log.Info("this resource is in the retry state. Add it to the retry tracker",
+					"resource", resource.GetMetadata().String())
 				p.retryTracker.Add(resource)
 			} else {
 				p.reconcileResource(resource)
@@ -229,7 +247,9 @@ func (p *ResourceReconciler) reconcileResource(resource *protocol.Resource) {
 		}
 	default:
 		{
-			p.log.Info("the resource reconciler has nothing to do with this resource. Penetrate it to the executor", "resource", resourceMetadataString(resource), "state", resource.GetState())
+			p.log.Info("the resource reconciler has nothing to do with this resource. "+
+				"Penetrate it to the executor", "resource", resourceMetadataString(resource),
+				"state", resource.GetState())
 			p.updateResource(resource)
 		}
 	}
@@ -273,7 +293,8 @@ func (p *ResourceReconciler) updateResource(resource *protocol.Resource) {
 	resource.Message = ""
 	executor, exists := p.pool[resource.GetExecutorEndpoint()]
 	if !exists {
-		p.log.Error(fmt.Errorf("executor not found: %s", resource.GetExecutorEndpoint()), "failed to update resource", "resource", resourceMetadataString(resource))
+		p.log.Error(fmt.Errorf("executor not found: %s", resource.GetExecutorEndpoint()),
+			"failed to update resource", "resource", resourceMetadataString(resource))
 		return
 	}
 	executor.Reconcile(p.ctx, resource)
