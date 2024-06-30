@@ -38,6 +38,8 @@ jobs:
           version: v1.55.2
           args: --timeout=10m
           skip-pkg-cache: true
+      - name: Build Java executor
+        run: make build-java-executor
       - name: Run Java Test Executor
         run: nohup make run-java-test-executor & > nohup.out
       - name: Wait for Java Test Executor to be ready
