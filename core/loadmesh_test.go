@@ -5,9 +5,9 @@ import (
 	"github.com/functionstream/function-stream/common"
 	"github.com/google/uuid"
 	"github.com/loadmesh/loadmesh/api"
+	"github.com/loadmesh/loadmesh/core/grpc_executor"
 	"github.com/loadmesh/loadmesh/model/protocol"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc"
 	"net"
 	"testing"
 	"time"
@@ -28,38 +28,6 @@ func NewTestExecutor() *TestExecutor {
 		statusUpdateCh: make(chan *protocol.Status),
 	}
 }
-
-type TestGRPCExecutorServer struct {
-	protocol.UnimplementedExecutorServer
-	executor *TestExecutor
-}
-
-func NewTestGRPCExecutorServer(executor *TestExecutor) *TestGRPCExecutorServer {
-	return &TestGRPCExecutorServer{
-		executor: executor,
-	}
-}
-
-func (t *TestGRPCExecutorServer) Reconcile(ctx context.Context, resource *protocol.Resource) (*protocol.Response, error) {
-	t.executor.Reconcile(resource)
-	return &protocol.Response{}, nil
-}
-
-func (t *TestGRPCExecutorServer) StatusUpdate(request *protocol.Request, server protocol.Executor_StatusUpdateServer) error {
-	for {
-		select {
-		case status := <-t.executor.StatusUpdate():
-			err := server.Send(status)
-			if err != nil {
-				return err
-			}
-		case <-server.Context().Done():
-			return nil
-		}
-	}
-}
-
-var _ protocol.ExecutorServer = &TestGRPCExecutorServer{}
 
 func (e *TestExecutor) Reconcile(resource *protocol.Resource) {
 	switch resource.GetState() {
@@ -91,15 +59,14 @@ func TestGRPCExecutor(t *testing.T) {
 	executor := NewTestExecutor()
 	lis, err := net.Listen("tcp", ":50051")
 	assert.NoError(t, err, "Should not have an error while creating listener")
-	s := grpc.NewServer()
-	server := NewTestGRPCExecutorServer(executor)
-	protocol.RegisterExecutorServer(s, server)
+	svr, err := grpc_executor.NewGRPCExecutorService(executor, grpc_executor.WithListener(lis))
+	assert.NoError(t, err, "Should not have an error while creating GRPCExecutorService")
 	go func() {
-		err := s.Serve(lis)
+		err := svr.Serve(ctx)
 		assert.NoError(t, err, "Should not have an error while serving")
 	}()
 	endpoint := "localhost:50051"
-	grpcExecutor := NewGRPCExecutor(ctx, "localhost:50051", common.NewDefaultLogger())
+	grpcExecutor := grpc_executor.NewGRPCExecutor(ctx, "localhost:50051", common.NewDefaultLogger())
 	go grpcExecutor.Connect()
 	testSingleExecutor(t, endpoint, grpcExecutor, executor)
 }

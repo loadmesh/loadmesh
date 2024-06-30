@@ -3,6 +3,7 @@ package api
 import "github.com/loadmesh/loadmesh/model/protocol"
 
 type Executor interface {
+	// TODO: Add context
 	Reconcile(resource *protocol.Resource)
 	StatusUpdate() <-chan *protocol.Status
 }

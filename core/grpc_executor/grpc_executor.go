@@ -1,10 +1,11 @@
-package core
+package grpc_executor
 
 import (
 	"context"
 	"fmt"
 	fscommon "github.com/functionstream/function-stream/common"
 	"github.com/loadmesh/loadmesh/api"
+	"github.com/loadmesh/loadmesh/core/common"
 	"github.com/loadmesh/loadmesh/model/protocol"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -82,7 +83,7 @@ func (e *GRPCExecutor) handleResourceError(resource *protocol.Resource, err erro
 
 func (e *GRPCExecutor) Reconcile(resource *protocol.Resource) {
 	if atomic.LoadInt32(&e.status) != ExecutorStatusReady {
-		e.handleResourceError(resource, ErrExecutorNotReady)
+		e.handleResourceError(resource, common.ErrExecutorNotReady)
 		return
 	}
 	res, err := e.client.Reconcile(e.ctx, resource)

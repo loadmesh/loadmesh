@@ -6,12 +6,9 @@ import (
 	fscommon "github.com/functionstream/function-stream/common"
 	"github.com/go-logr/logr"
 	"github.com/loadmesh/loadmesh/api"
+	"github.com/loadmesh/loadmesh/core/common"
 	"github.com/loadmesh/loadmesh/model/protocol"
 	"math/rand"
-)
-
-var (
-	ErrExecutorNotReady = fmt.Errorf("executor is not ready")
 )
 
 type LoadMesh struct {
@@ -27,7 +24,7 @@ type options struct {
 	log               *logr.Logger
 }
 
-type LoadMeshOption interface {
+type Option interface {
 	apply(option *options) (*options, error)
 }
 
@@ -37,14 +34,14 @@ func (f optionFunc) apply(c *options) (*options, error) {
 	return f(c)
 }
 
-func WithResourceManager(rm api.ResourceManager) LoadMeshOption {
+func WithResourceManager(rm api.ResourceManager) Option {
 	return optionFunc(func(o *options) (*options, error) {
 		o.resourceManager = rm
 		return o, nil
 	})
 }
 
-func WithExecutor(kind string, endpoint string, executor api.Executor) LoadMeshOption {
+func WithExecutor(kind string, endpoint string, executor api.Executor) Option {
 	return optionFunc(func(o *options) (*options, error) {
 		if _, ok := o.executorEndpoints[kind]; !ok {
 			o.executorEndpoints[kind] = make(map[string]api.Executor)
@@ -54,21 +51,21 @@ func WithExecutor(kind string, endpoint string, executor api.Executor) LoadMeshO
 	})
 }
 
-func WithLogger(log *logr.Logger) LoadMeshOption {
+func WithLogger(log *logr.Logger) Option {
 	return optionFunc(func(o *options) (*options, error) {
 		o.log = log
 		return o, nil
 	})
 }
 
-func WithExecutorSelector(selector api.ExecutorSelector) LoadMeshOption {
+func WithExecutorSelector(selector api.ExecutorSelector) Option {
 	return optionFunc(func(o *options) (*options, error) {
 		o.selector = selector
 		return o, nil
 	})
 }
 
-func NewLoadMesh(opts ...LoadMeshOption) (*LoadMesh, error) {
+func NewLoadMesh(opts ...Option) (*LoadMesh, error) {
 	o := &options{}
 	o.executorEndpoints = make(map[string]map[string]api.Executor)
 	for _, opt := range opts {
@@ -125,7 +122,7 @@ type RandomSelector struct {
 
 func (r *RandomSelector) Select(_ *protocol.Resource, executors map[string]api.Executor) (string, error) {
 	if len(executors) == 0 {
-		return "", ErrExecutorNotReady
+		return "", common.ErrExecutorNotReady
 	}
 	endpoints := make([]string, 0, len(executors))
 	for endpoint, _ := range executors {
