@@ -40,6 +40,12 @@ jobs:
           skip-pkg-cache: true
       - name: Run Java Test Executor
         run: nohup make run-java-test-executor & > nohup.out
+      - name: Wait for Java Test Executor to be ready
+        run: |
+          while ! nc -z localhost 50052; do
+            echo "Waiting for port 50052..."
+            sleep 1
+          done
       - run: make test
       - name: Collect nohup logs
         if: failure()
