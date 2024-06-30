@@ -38,6 +38,11 @@ jobs:
           version: v1.55.2
           args: --timeout=10m
           skip-pkg-cache: true
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
       - name: Build Java executor
         run: make build-java-executor
       - name: Run Java Test Executor
