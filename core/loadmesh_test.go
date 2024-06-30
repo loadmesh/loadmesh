@@ -19,7 +19,7 @@ type TestExecutor struct {
 
 var _ api.Executor = &TestExecutor{}
 
-func (e *TestExecutor) StatusUpdate() <-chan *protocol.Status {
+func (e *TestExecutor) StatusUpdate(_ context.Context) <-chan *protocol.Status {
 	return e.statusUpdateCh
 }
 
@@ -29,7 +29,7 @@ func NewTestExecutor() *TestExecutor {
 	}
 }
 
-func (e *TestExecutor) Reconcile(resource *protocol.Resource) {
+func (e *TestExecutor) Reconcile(_ context.Context, resource *protocol.Resource) {
 	switch resource.GetState() {
 	case protocol.State_INITIATING:
 		status := protocol.Status{

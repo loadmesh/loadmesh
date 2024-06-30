@@ -72,14 +72,14 @@ type serverImpl struct {
 }
 
 func (s *serverImpl) Reconcile(ctx context.Context, resource *protocol.Resource) (*protocol.Response, error) {
-	s.executor.Reconcile(resource)
+	s.executor.Reconcile(ctx, resource)
 	return &protocol.Response{}, nil
 }
 
 func (s *serverImpl) StatusUpdate(request *protocol.Request, server protocol.Executor_StatusUpdateServer) error {
 	for {
 		select {
-		case status := <-s.executor.StatusUpdate():
+		case status := <-s.executor.StatusUpdate(server.Context()):
 			err := server.Send(status)
 			if err != nil {
 				return err

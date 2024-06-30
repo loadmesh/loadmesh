@@ -81,12 +81,12 @@ func (e *GRPCExecutor) handleResourceError(resource *protocol.Resource, err erro
 	e.statusUpdateCh <- status
 }
 
-func (e *GRPCExecutor) Reconcile(resource *protocol.Resource) {
+func (e *GRPCExecutor) Reconcile(ctx context.Context, resource *protocol.Resource) {
 	if atomic.LoadInt32(&e.status) != ExecutorStatusReady {
 		e.handleResourceError(resource, common.ErrExecutorNotReady)
 		return
 	}
-	res, err := e.client.Reconcile(e.ctx, resource)
+	res, err := e.client.Reconcile(ctx, resource)
 	if err != nil {
 		e.handleResourceError(resource, err)
 		return
@@ -97,7 +97,7 @@ func (e *GRPCExecutor) Reconcile(resource *protocol.Resource) {
 	}
 }
 
-func (e *GRPCExecutor) StatusUpdate() <-chan *protocol.Status {
+func (e *GRPCExecutor) StatusUpdate(_ context.Context) <-chan *protocol.Status {
 	return e.statusUpdateCh
 }
 

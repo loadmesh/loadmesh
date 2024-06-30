@@ -1,11 +1,13 @@
 package api
 
-import "github.com/loadmesh/loadmesh/model/protocol"
+import (
+	"context"
+	"github.com/loadmesh/loadmesh/model/protocol"
+)
 
 type Executor interface {
-	// TODO: Add context
-	Reconcile(resource *protocol.Resource)
-	StatusUpdate() <-chan *protocol.Status
+	Reconcile(ctx context.Context, resource *protocol.Resource)
+	StatusUpdate(ctx context.Context) <-chan *protocol.Status
 }
 
 type ExecutorSelector interface {

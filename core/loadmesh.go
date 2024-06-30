@@ -150,7 +150,7 @@ func (p *ResourceReconciler) AddExecutor(endpoint string, executor api.Executor)
 		p.log.Info("executor already exists", "kind", p.kind, "endpoint", endpoint)
 		return
 	}
-	statusUpdateCh := executor.StatusUpdate()
+	statusUpdateCh := executor.StatusUpdate(p.ctx)
 	p.pool[endpoint] = executor
 	go func() {
 		for {
@@ -259,7 +259,7 @@ func (p *ResourceReconciler) assignResource(resource *protocol.Resource) {
 	resource.State = protocol.State_INITIATING
 	p.setResource(resource)
 	updatedRes := p.getResource(resource.GetMetadata().GetUuid())
-	p.pool[endpoint].Reconcile(updatedRes)
+	p.pool[endpoint].Reconcile(p.ctx, updatedRes)
 }
 
 func IsFinalState(state protocol.State) bool {
@@ -276,7 +276,7 @@ func (p *ResourceReconciler) updateResource(resource *protocol.Resource) {
 		p.log.Error(fmt.Errorf("executor not found: %s", resource.GetExecutorEndpoint()), "failed to update resource", "resource", resourceMetadataString(resource))
 		return
 	}
-	executor.Reconcile(resource)
+	executor.Reconcile(p.ctx, resource)
 }
 
 func (p *ResourceReconciler) updateStatus(status *protocol.Status) {
