@@ -17,6 +17,7 @@
 syntax = "proto3";
 
 option go_package = "model/protocol";
+option java_package = "com.github.loadmesh.model.protocol";
 package loadmesh;
 
 message Metadata {

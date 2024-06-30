@@ -38,4 +38,9 @@ jobs:
           version: v1.55.2
           args: --timeout=10m
           skip-pkg-cache: true
+      - name: Run Java Test Executor
+        run: nohup make run-java-test-executor & > nohup.out
       - run: make test
+      - name: Collect nohup logs
+        if: failure()
+        run: cat nohup.out || true

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package grpc_executor
+package goexecutor
 
 import (
 	"context"

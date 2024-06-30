@@ -18,6 +18,9 @@ proto:
 			$$PROTO_FILE; \
 	done
 
+run-java-test-executor:
+	mvn test-compile exec:java -Dexec.mainClass="com.github.loadmesh.TestExecutor" -Dexec.classpathScope=test -f executors/executor-java/pom.xml
+
 test:
 	go test ./...
 

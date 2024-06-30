@@ -83,7 +83,7 @@ func (e *GRPCExecutor) Connect() {
 			handleErr(fmt.Errorf("failed to receive status update: %w", err))
 			return
 		}
-		e.log.Info("received status update", "status", status)
+		e.log.Info("grpc executor received status update", "status", status)
 		e.statusUpdateCh <- status
 	}
 }

@@ -108,3 +108,5 @@ dist
 .DS_Store
 
 bin/
+
+nohup.out

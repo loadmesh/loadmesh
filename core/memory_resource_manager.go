@@ -62,7 +62,13 @@ func (m *MemoryResourceManager) Set(resource *protocol.Resource) error {
 	m.log.Info("updating resource", "resource", resource)
 	if old := m.resources[resource.GetMetadata().GetUuid()]; old != nil {
 		if old.GetVersion() > resource.GetVersion() {
-			m.log.Info("resource version is older than the current version", "resource", resource)
+			m.log.Info("resource version is older than the current version", "resource", resource,
+				"currentVersion", old.GetVersion())
+			return nil
+		}
+		if old.GetVersion() != resource.GetVersion() {
+			m.log.Info("resource version is mismatched", "resource", resource,
+				"currentVersion", old.GetVersion())
 			return nil
 		}
 	}
@@ -85,13 +91,13 @@ func (m *MemoryResourceManager) Watch(ctx context.Context, kind string) (<-chan 
 	m.Lock()
 	defer m.Unlock()
 	ch := make(chan *protocol.Resource, 10)
-	m.watchChs[kind] = append(m.watchChs[kind], ch)
 	resourceSnapshot := make([]*protocol.Resource, 0, len(m.resources))
 	for _, resource := range m.resources {
 		if resource.GetMetadata().GetKind() == kind {
 			resourceSnapshot = append(resourceSnapshot, cloneResource(resource))
 		}
 	}
+	m.watchChs[kind] = append(m.watchChs[kind], ch)
 	go func() {
 		// send snapshot
 		for _, resource := range resourceSnapshot {

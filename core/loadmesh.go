@@ -191,8 +191,15 @@ func (p *ResourceReconciler) RunEventLoop() {
 	for {
 		select {
 		case resource := <-p.retryTracker.GetRetryCh():
+			p.log.Info("reconciling resource",
+				"resource", resource.GetMetadata().String(),
+				"version", resource.GetVersion(),
+				"trigger", "retry tracker")
 			p.reconcileResource(resource)
 		case resource := <-watchCh:
+			p.log.Info("reconciling resource", "resource", resource.GetMetadata().String(),
+				"version", resource.GetVersion(),
+				"trigger", "watcher")
 			if resource.GetRetryCount() > 0 {
 				// The resource is in retry state.
 				p.log.Info("this resource is in the retry state. Add it to the retry tracker",
@@ -297,7 +304,8 @@ func (p *ResourceReconciler) updateResource(resource *protocol.Resource) {
 			"failed to update resource", "resource", resourceMetadataString(resource))
 		return
 	}
-	executor.Reconcile(p.ctx, resource)
+	// We should call the Reconcile asynchronously to avoid deadlock.
+	go executor.Reconcile(p.ctx, resource)
 }
 
 func (p *ResourceReconciler) updateStatus(status *protocol.Status) {

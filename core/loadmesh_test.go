@@ -18,6 +18,8 @@ package core
 
 import (
 	"context"
+	"github.com/labstack/gommon/log"
+	"github.com/loadmesh/loadmesh/executors/goexecutor"
 	"net"
 	"testing"
 	"time"
@@ -76,7 +78,7 @@ func TestGRPCExecutor(t *testing.T) {
 	executor := NewTestExecutor()
 	lis, err := net.Listen("tcp", ":50051")
 	assert.NoError(t, err, "Should not have an error while creating listener")
-	svr, err := grpc_executor.NewGRPCExecutorService(executor, grpc_executor.WithListener(lis))
+	svr, err := goexecutor.NewGRPCExecutorService(executor, goexecutor.WithListener(lis))
 	assert.NoError(t, err, "Should not have an error while creating GRPCExecutorService")
 	go func() {
 		err := svr.Serve(ctx)
@@ -86,6 +88,15 @@ func TestGRPCExecutor(t *testing.T) {
 	grpcExecutor := grpc_executor.NewGRPCExecutor(ctx, "localhost:50051", common.NewDefaultLogger())
 	go grpcExecutor.Connect()
 	testSingleExecutor(t, endpoint, grpcExecutor, executor)
+}
+
+func TestJavaExecutor(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	endpoint := "localhost:50052"
+	javaExecutor := grpc_executor.NewGRPCExecutor(ctx, "localhost:50052", common.NewDefaultLogger())
+	go javaExecutor.Connect()
+	testSingleExecutor(t, endpoint, javaExecutor, nil)
 }
 
 func testSingleExecutor(t *testing.T, endpoint string, executor api.Executor, testExecutor *TestExecutor) {
@@ -113,22 +124,25 @@ func testSingleExecutor(t *testing.T, endpoint string, executor api.Executor, te
 	var newRes *protocol.Resource
 	assert.Eventually(t, func() bool {
 		newRes, err = resMgr.Get(resource.GetMetadata().GetUuid())
+		log.Info(newRes)
 		return err == nil && newRes.State == protocol.State_RUNNING
 	}, 10*time.Second, 1*time.Second)
 	assert.Equal(t, endpoint, newRes.ExecutorEndpoint, "Executor endpoint should be 0")
 	assert.Equal(t, resource.Metadata.String(), newRes.Metadata.String(), "Resource metadata should match")
 
-	testExecutor.statusUpdateCh <- &protocol.Status{
-		Metadata: newRes.Metadata,
-		State:    protocol.State_FAILED,
-		Version:  newRes.Version,
-		Message:  "test error",
+	if testExecutor != nil {
+		testExecutor.statusUpdateCh <- &protocol.Status{
+			Metadata: newRes.Metadata,
+			State:    protocol.State_FAILED,
+			Version:  newRes.Version,
+			Message:  "test error",
+		}
+		assert.Eventually(t, func() bool {
+			newRes, err = resMgr.Get(newRes.GetMetadata().GetUuid())
+			return err == nil && newRes.State == protocol.State_FAILED
+		}, 10*time.Second, 1*time.Second)
+		assert.Equal(t, "test error", newRes.Message, "Resource message should match")
 	}
-	assert.Eventually(t, func() bool {
-		newRes, err = resMgr.Get(newRes.GetMetadata().GetUuid())
-		return err == nil && newRes.State == protocol.State_FAILED
-	}, 10*time.Second, 1*time.Second)
-	assert.Equal(t, "test error", newRes.Message, "Resource message should match")
 
 	newRes.State = protocol.State_DELETING
 	err = resMgr.Set(newRes)
